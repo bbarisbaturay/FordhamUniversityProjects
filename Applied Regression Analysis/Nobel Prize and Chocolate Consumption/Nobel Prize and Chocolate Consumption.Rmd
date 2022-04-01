@@ -1,0 +1,291 @@
+---
+title: "HW1-BarisBaturay-5:45"
+output: html_document
+---
+
+```{r, include=FALSE}
+#Installing packages
+require(tidyverse)
+require(broom)
+require(gridExtra)
+require(ggpubr)
+require(scales)
+#Reading the data
+y <- read.delim('nobel_chocolate.txt',sep=",")
+```
+
+```{r}
+#For checking the head of usefull data
+y[c("country","nobel_rate","chocolate","GDP_cap")]
+```
+
+**Question 1**
+
+Number of Nobel laureates per capita supposed to measure the cognitive efficiencies of the nations. I do not believe it is a reasonable measure because it rarely happens and have so much other dependents like education, interest, politics and economy. However, there isn't any way to calculate cognitive efficiency so it can be a decent indicator. Also, some countries do not have nobel prizes but has chocolate consumption. This narrowed the study and resulted with a decrease in credibility. 
+
+**Question 2**
+
+Countries without nobel prizes does not have an indicator of a cognitive function so their cognitive function is basically immeasurable for this study and it is not included. So there is a sampling bias meaning sample size is small regarding to whole nations. Looking just the small portion of the countries can lead to question the study. 
+
+**Question 3**
+
+So the time intervals for Nobel rates differs from country to country so it is not on the same temporal scale. Basically, getting the data from different time intervals for different countries reduces the reliability of the study. I believe, comparing different time zones inside the same linear regression model is not a good approach since time can be a significant indicator here. 
+
+**Question 4**
+
+```{r}
+#Checking the summaries for statistical analysis 
+df <- summary(y[,c("nobel_rate","GDP_cap","chocolate")])
+colnames(df) <- c('Nobel Rate (Nobel Laurates per 10 Mil p)','GDP_cap (GDP per Capita)','Chocolate (Chocolate Consumption per Capita)')
+df
+cat("\n")
+df1 <- round(apply(y[,c("nobel_rate", "GDP_cap", "chocolate")],2, sd, na.rm=TRUE), digits=2)
+df1
+print(paste('Here is the standard deviation'))
+
+```
+
+**Question 5**
+
+```{r}
+#Histogram for Nobel Laureates 
+y %>% ggplot(aes(nobel_rate)) + geom_histogram(bins=15, col="black",
+  fill="darkgreen") +
+  ggtitle("Nobel Laurates Distribution") +
+  labs(x="Nobel Laureates per 10 Million Population") 
+
+```
+
+As we can see Nobel Laureates are mostly distributed between 0-5. By looking at this distribution we can consider as Sweden and Switzerland as an outlier with a more than 30 Nobel Laureates per 10 Mil Popularion. Except that between 5-15 it is distributed pretty much stable and same.
+
+
+
+```{r}
+#Histogram for GDP per Capita
+y %>% ggplot(aes(GDP_cap)) + geom_histogram(bins=15, col="black",
+  fill="darkblue") +
+  ggtitle("GDP Distribution") +
+  labs(x="GDP per Capita") 
+  
+
+```
+
+If we look at GDP per capita distribution we can see that most of the countries have GDP per capita between 27000 - 42000. The outliers in this histogram; Poland and China with a less than 15000 GDP per capita. 
+
+```{r}
+#Histogram for Chocolate consumption kg/year/capita
+y %>% ggplot(aes(chocolate)) + geom_histogram(bins=15, col="black",
+  fill="brown") +
+  ggtitle("Chocolate Consumption Distrbution") +
+  labs(x="Chocolate Consumption per Capita") 
+```
+
+When we look at the chococalate consumption distribution it is distributed basically same between 0-12 kg/year/cap. There is a slight increase in between 2.5-5 kg/year/cap. 
+
+**Question 6**
+
+```{r}
+#Finding the correlation between chocolate consumption and nobel rate
+cora <- round(cor(y$chocolate, y$nobel_rate), digits=4)
+
+#Scatter plot between chocolate consumption and nobel rate
+y %>% ggplot(aes(x=chocolate, y=nobel_rate, label=country)) + geom_point(size=2) +
+  ggtitle("Chocolate vs Nobel_Rate") +
+  labs(x="Chocolate Consumption (kg/yr/capita)", y="Nobel Laureates per 10 Million Population") +
+  geom_text(label = paste("Correlation is:",toString(cora)), x=2, y=23, size=5) +
+  geom_text(hjust=0,vjust=0, aes(label =ifelse((chocolate <7.5 & nobel_rate>25),country,'')))
+
+```
+
+There is definitely a correlation between chocolate consumption and Nobel laureates but not necessarily a causation. For starting the study, to see the effect between two variables, correlation is an appropriate measure. However, further investigation is needed to prove the relation between these two. Since correlation indicates the strength of a linear association it is a good measure for linear regression models.
+
+Also, if we look at the scatter plot the linearity is more visible between 0 to 5 kg/yr/capita.
+
+**Question 7**
+
+Our data is similar but not the same data that Messerli is using. Our data only has the values from November 2012 however, Messerli used several different time zones for different countries. So, the correlation difference is happening because of the slight difference in our datas.
+
+
+**Question 8**
+
+Messerli consider Sweden as outlier because regarding to the linear regression prediction Sweden is predicted 14 however we observe 32. Since, it has a more than two times difference from the predicted value. So, Messerli consider Sweden as an outlier. 
+
+**Question 9**
+
+a)
+
+```{r}
+#Here is the slope
+beta.1 <- cor(y$chocolate, y$nobel_rate)*sd(y$nobel_rate)/sd(y$chocolate)
+print(paste("Here is the slope:",round(beta.1,2),"Nobel Laureates per 10 mil/Chocolate Consumption "))
+#Here is the y-intercept
+beta.0 <- mean(y$nobel_rate) - beta.1*mean(y$chocolate)
+print(paste("Here is the y-intercept:",round(beta.0,2)))
+#Here is the equation of linear regression model
+print(paste("y =",round(beta.0,2),"+",round(beta.1,2),"x"))
+```
+
+b)
+
+There is a positive relationship between chocolate consumption per capita and Nobel Laureates per 10 million population. Also, numerically explaining the slope is 2.5 meaning if we increase the chocolate consumption for 1 kg/yr/cap we are gonna see an increase of 2.5 Nobel Leureates per 10 mil population. 
+
+c)
+```{r}
+#Constructing linear regression model using tidyverse
+lm.y <- lm(nobel_rate ~ chocolate, data=y)
+
+#Augment of the the model
+y.augment <- augment(lm.y)
+
+#Conducting residual analysis
+
+#Residual Plot
+res <- y.augment %>% 
+  ggplot(aes(x=chocolate, y=.resid)) + 
+  geom_point(color="firebrick", size=2) +
+  ggtitle("Residual Plot") +
+  labs(x="Chocolate Consumption per Capita", y="Residuals") +
+  geom_hline(yintercept=0, color="forestgreen",  lty=2)
+
+#QQ Plot
+qq <- y.augment %>%  
+  ggplot(aes(sample=.resid)) +
+  stat_qq(col = "firebrick") +
+  stat_qq_line(color="forestgreen",size=1) +
+  ggtitle("Normal Quantile Plot")
+
+#For showing them in one figure
+ggarrange(res, qq, 
+          ncol = 2, nrow = 1)
+```
+
+We can continue to perform hypothesis testing;
+
+In the residual plot the dots are evenly distributed between negatives and positives like how we want them to be in order our linear regression models performance.
+
+Only negative thing with the residual plot is standard deviation increases when the chocolate consumption increases. Meaning our prediction accuracy gets smaller while we are increasing the chocolate consumption.
+
+İf we look at the normal quantile plot we can almost observe that all the the dots are lined in the regression line meaning we can continue with the hypothesis testing. 
+
+
+d)
+```{r}
+# Ho : beta_1 <= 1
+# H1 : beta_1 > 1
+
+#Test statistic
+test.stat <- (lm.y$coef[2] - 1)/summary(lm.y)$coefficients[2,2]
+
+test.stat
+
+qt(0.975, df=nrow(y)-2, lower.tail=FALSE)
+
+qt(0.975, df=nrow(y)-2, lower.tail=TRUE)
+
+```
+
+Since, t-test shows us it is above 97.5% confidence interval we are rejecting our null hypothesis. Our slope is significantly different then 1. The slope is significant. Also, our test statistics exceeds the critical value in the upper tail. 
+
+e)
+```{r}
+#Added the linear regression line
+y %>% ggplot(aes(x=chocolate, y=nobel_rate)) + 
+  geom_point(color="black", size=2) +
+  ggtitle("Chocolate vs Nobel Prize Regression") +
+  labs(x="Chocolate Consumption per Capita", y="Nobel Laureates per 10 Million Population") +
+  geom_abline(intercept = coef(lm.y)[1],
+              slope = coef(lm.y)[2], color = "forestgreen", size = 1)
+```
+
+**Question 10**
+
+```{r}
+#Prediction for Sweden using our model
+pred <- predict(lm.y, y %>% filter(country=="Sweden") %>% select("chocolate"))
+
+#Substructing from actual result to find residual
+res <- y %>% filter(country=="Sweden") %>% select("nobel_rate") - pred
+
+print(paste('Prediction:',round(pred,4),"Nobel Laureates per 10 mil----",'Residual:',round(res,4),"Nobel Laureates per 10 mil"))
+
+```
+
+As Messerli mentioned in the article Sweden considered as an outlier since there is too much error in our Regression Model for Sweden. 
+
+**Question 11**
+
+a)
+```{r}
+
+#GDP per capita Nobel Rate Scatter plot
+gdp_nobel <- y %>% ggplot(aes(x=GDP_cap, y=nobel_rate)) + 
+  geom_point(color="black", size=2) +
+  ggtitle("GDP per Capita vs Nobel") +
+  geom_text(hjust=0,vjust=0, aes(label =ifelse((chocolate <7.5 & nobel_rate>25),country,''))) +
+  labs(x="GDP per Capita", y="Nobel Laureates per 10 Million Population")
+
+#GDP per capita log(Nobel rate) scatter plot
+loggdp_nobel <- y %>% ggplot(aes(x=GDP_cap, y=nobel_rate)) + 
+  geom_point(color="black", size=2) +
+  scale_y_continuous(trans='log10',
+                     breaks=trans_breaks('log10', function(x) 10^x),
+                     labels=trans_format('log10', math_format(10^.x))) +
+  ggtitle("GDP per Capita vs log of Nobel Prize") +
+  geom_text(hjust=0,vjust=0, aes(label =ifelse(((chocolate <7.5 & nobel_rate>25)|(GDP_cap < 15000 & nobel_rate < 5)),country,'')))+
+  labs(x="GDP per Capita", y="log of Nobel Laureates per 10 Million Population")
+
+#To show them in figure
+ggarrange(gdp_nobel, loggdp_nobel, 
+          ncol = 2, nrow = 1)
+
+```
+
+After taking the log of nobel rates the plot became more linear. So the second plot has more predictive value in terms of simple linear regression. 
+
+b)
+
+After taking the log of the nobel rates Sweden is not an outlier anymore. In the first plot it follows an exponential path so when we took the log of the Nobel Learutes the scatter plot became more linear so Sweden has gotten closer. In short, the second plot follows more linear path and Sweden is not an outlier anymore.    
+
+c)
+```{r}
+#Constructing a linear regression model for GDP per capita and log(nobel rate)
+lm.g <- lm(log10(nobel_rate) ~ GDP_cap, data=y)
+
+#Added linear regression line
+y %>% ggplot(aes(x=GDP_cap, y=nobel_rate)) + 
+  geom_point(color="black", size=2) +
+  scale_y_continuous(trans='log10',
+                     breaks=trans_breaks('log10', function(x) 10^x),
+                     labels=trans_format('log10', math_format(10^.x))) +
+  ggtitle("GDP per Capita vs log of Nobel Prize") +
+  geom_text(hjust=0,vjust=0, aes(label =ifelse(((chocolate <7.5 & nobel_rate>25)|(GDP_cap < 15000 & nobel_rate < 5)),country,''))) +
+  geom_abline(intercept = coef(lm.g)[1],
+              slope = coef(lm.g)[2], color = "forestgreen", size = 1) +
+  labs(x="GDP per Capita", y="Log of Nobel Laureates per 10 Million Population")
+```
+
+d)
+
+```{r}
+#Adding new column to find the slope
+y$lognobel <- log10(y$nobel_rate)
+
+#Printing the slope
+print(paste(cor(y$GDP_cap, y$lognobel)*sd(y$lognobel)/sd(y$GDP_cap),"Nobel Laureates per 10 Mil/GDP_cap"))
+```
+
+
+**Question 12**
+
+There is definitely a correlation between chocolate consumption and nobel prizes however, it isn't certain that there is a cause and effect relationship. We know that they somehow in a relationship.
+
+The problems are:
+  - Since some countries don't have any nobel prizes our sample size became smaller to investigate for the whole world.
+  - Is nobel prize count a good indicator for cognitive intelligence. Some can say that it is some don't. Since, there isn't any numerical way to explain cognitive intelligence it can't prove that chocolate consumption is related to cognitive intelligence. 
+  - Also, time intervals for each country is taken differently so we are doing a regression model within different time intervals. That also reduces the reliability of the study. 
+
+Other than these factors, there is a certain correlation between the two variables. However, we can't certainly know that one is the cause of the other. In short, we can't conclude that there is a causation.  
+
+
+
+

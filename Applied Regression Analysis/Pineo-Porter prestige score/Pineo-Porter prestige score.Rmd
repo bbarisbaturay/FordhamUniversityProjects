@@ -1,0 +1,207 @@
+---
+title: "HW2-BarisBaturay-5.45"
+output: html_document
+---
+
+```{r, include=FALSE}
+require(tidyverse)
+require(gridExtra)
+require(GGally)
+require(broom)
+require(ggpubr)
+require(scales)
+require(usdm)
+
+df <- read_delim('prestige.dat')
+```
+
+**Question 1**
+
+Pineo-Porter prestige score is a measure of jobs worthiness. It is computed from series of national surveys. The Pineo-Porter is calculated for Canada only and they surveyed people only in Canada to compare with US. They surveyed people through telephone interviews to gather the necessary data. Their survey only includes 26 major groups of the national occupational classification. They asked people to rank the jobs from most prestigious to the least prestigious in order to compute the prestige score. Moreover, they collected income and education data for these major groups but separately in order to see if there is a relationship. The prestige data goes back to 1965 while the income and education data is only goes back to 1981. In conclusion, the prestogious score computed by just looking how people are ranked occupations in surveys. 
+
+https://scholar.uwindsor.ca/cgi/viewcontent.cgi?article=7530&context=etd
+https://www.jstor.org/stable/20460616?seq=3
+
+**Question 2**
+
+```{r}
+df[,c("income","education","prestige", "women","type")] %>% ggpairs(ggplot2::aes(color=type))
+```
+
+We can see that professional type of people have more prestige compared to blue collars and white collars. Meaning there is a significant relationship between type and prestige so we need to get this feature into our model. It is also important to note that; the white collars and blue collars are not separated from each other as far as we can see from the scatter plots. If we look at the correlation values between education and prestige we can see that there is a significant positive correlation which is more than 0.8. Similarly, there is a strong correlation more than 0.7 between income and prestige. By looking at these correlations and scatter plots we can conclude that there is a significant linear relationship for education and income so, we should include these features in our model too. However, for women feature we cannot see any significant linear relationship since the correlation value(0.1) is small and the scatters are almost randomly distributed. While building our model, eliminating the women feature makes sense since it cannot give any information for prestige. Census is a unique value which does not give any information for our model. In conclusion, it is reasonable to only include income, type, education for our exploratory variable.
+
+**Question 3**
+
+```{r}
+df %>% filter(is.na(type))
+
+df %>% count(type)
+```
+First of all the number of the missing values is so small for taking into account compared the other types. There is only 4 missing values which is less than %4 which won't have a significant effect on our model. 
+
+So if we look at the scatter plot matrix in the first part we can see that the null values randomly distributed among the graphs meaning they do not act like a group. So, they won't be able to help our model.
+
+In conclusion, it is wise to simply drop the rows and not involve them into our model since they will not give any useful information to our model.
+
+```{r, include=FALSE}
+df <- df[,c("income","education","prestige", "women","type")]
+df <- na.omit(df)
+```
+
+**Question 4**
+
+```{r}
+
+lm.bc <- lm(prestige ~ income, data=df, subset=df$type=="bc")
+lm.wc <- lm(prestige ~ income, data=df,subset=df$type=="wc")
+lm.prof <- lm(prestige ~ income, data=df, subset=df$type=="prof")
+
+col.vector <- c("bc"="cadetblue", "wc"="firebrick","prof"="green")
+
+s1 <- df %>% ggplot(aes(x=income, y=prestige, col=type)) +
+  geom_point(size=2) +
+  ggtitle("Income vs Prestige with types ") + scale_color_manual(values=col.vector) 
+
+s1 + geom_abline(slope=coef(lm.bc)[2], intercept=coef(lm.bc)[1], col="cadetblue", size=2) +
+      geom_abline(slope=coef(lm.wc)[2], intercept=coef(lm.wc)[1], col="firebrick", size=2) +
+      geom_abline(slope=coef(lm.prof)[2], intercept=coef(lm.prof)[1], col="green", size=2)
+      annotate("text", x=1, y=75, label="Separate\nRegressions", size=10)
+```
+
+```{r}
+lm.bc <- lm(prestige ~ education, data=df, subset=df$type=="bc")
+lm.wc <- lm(prestige ~ education, data=df,subset=df$type=="wc")
+lm.prof <- lm(prestige ~ education, data=df, subset=df$type=="prof")
+
+col.vector <- c("bc"="cadetblue", "wc"="firebrick","prof"="green")
+
+s1 <- df %>% ggplot(aes(x=education, y=prestige, col=type)) +
+  geom_point(size=2) +
+  ggtitle("Education vs Prestige with types") + scale_color_manual(values=col.vector) 
+
+s1 + geom_abline(slope=coef(lm.bc)[2], intercept=coef(lm.bc)[1], col="cadetblue", size=2) +
+      geom_abline(slope=coef(lm.wc)[2], intercept=coef(lm.wc)[1], col="firebrick", size=2) +
+      geom_abline(slope=coef(lm.prof)[2], intercept=coef(lm.prof)[1], col="green", size=2)
+      annotate("text", x=1, y=75, label="Separate\nRegressions", size=10)
+```
+
+If we compare the slopes of the lines for these two plot there is a significant slope difference for each type in a relationship between income and prestige. So, we can conclude that every type is giving significantly different information for income. We can conclude that there is an interaction between type and income while trying to predict prestige levels.
+
+However, for education vs prestige each type has similar slopes meaning they do not interact much compared to income vs type. So, type has close to no interaction with education.
+
+**Question 5**
+
+```{r}
+lm.1 <- lm(prestige ~ education + income + type + type*income, data=df)
+lm.2 <- lm(prestige ~ education + income + type + type*education, data=df)
+
+print("Model 1")
+summary(lm.1)
+print("Model 2")
+summary(lm.2)
+```
+To justify our reason and see the interactions more clearly, we builded two models with education x type and income x type. So if we look at our first model summary we can clearly see that income:typeprof is significant so we should be considering involving income x type interaction to our model. However if we look at the second model both education:typeprof and education:typewc are not significant at all. So adding education x type interaction to our model does not add any more significance. Also, if we compare our residual standard errors for both models we can see that our first model has less error compared to our second model. In short it is better to add the income x type interaction to build our model. 
+
+For our model, it is clear that education, income and income:typeprof is significant which is having p values below <0.001 and definetly should involved in the model. However, other features are not significant so we are adding this interaction only to get information for prof. Our model is weak in terms of determining the differences between white collars and blue collars however, it is good in seperating professionals. 
+
+**Question 6**
+
+If we interpret the slopes of the model we can see that there is a positive relationship for income, education. 
+
+-If income is increased for 1 dollar of an occupational incumbents their prestige score will go up by 0.001
+-If education is increased for 1 year the prestige score will go up by 3.82
+-If a person is not blue collared, white collared or proffesional the prestige score will be -2.33
+-If a person is professional the prestige score will start from 17,87 even the person has no education or income. 
+-If a person is white collared and has no income and education the prestige score will be -23,15. If they have income and education the prestige score will go up as mentioned above.
+
+**Question 7**
+
+```{r}
+ggplot(df, aes(x=income))+geom_histogram(color = 'black', fill = 'darkblue')
+ggplot(df, aes(x=log(income)))+geom_histogram(color = 'black', fill = 'darkgreen')
+```
+
+The log transformation reduced to variability and changed it to look more like a normal distribution. Also, it eliminated some of the outliers. Moreover, the income was skewed right before the transformation and by taking the log we reduced the skeweness. 
+
+**Question 8**
+
+```{r}
+lm.3 <- lm(prestige ~ education + log(income) + type + type*log(income), data=df)
+
+print("Model 3")
+summary(lm.3)
+```
+The education, log(income), typeprof and log(income):typeprof stayed significant however, typeprof and log(income):typeprof significance level dropped. The model 3 has similar performance to the model 1 however, it performed slightly worse. This model is worse at seperating professionals from white collars and blue collars but it still does a good job. 
+
+**Question 9**
+
+For to determine which model is better we can simply look into Residual standard error. Even though they are similar our first model without the log has less error. Our first model has a 6.455 residual standard error while our third model has 6.491. If we compare the significance of the features the first model has more significant features than our third model. Moreover, the first model has slightly more adjusted r squared value meaning higher amount of variability is explained. 
+
+The reason we cannot use partial F-test here that the models we want to compare are not nested. They have different types of features since we transformed our data. 
+
+**Question 10**
+
+1- x variables are fixed and measured without error
+
+Since we assume that we gathered the data from a reliable resource, we know that x values are fixed. There are always be a risk that people may lied about themselves in the surveys or miscalculation occurred. However, for this data set we assume x are fixed and measured without error.
+
+```{r}
+r1 <- augment(lm.1) %>% 
+  ggplot(aes(x=.fitted, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="fitted values ", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. Fitted Values")
+
+# standardized residuals vs. each x variable
+r2 <- augment(lm.1) %>%
+  ggplot(aes(x=income, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="Income", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. Income")
+
+
+r3 <- augment(lm.1) %>%
+  ggplot(aes(x=education, y=.std.resid)) +
+  geom_point(size=2, col="firebrick") + 
+  geom_hline(yintercept=0, lty=2, col="gray50") +
+  labs(x="Education", y="standardized residuals") +
+  ggtitle("Std. Residuals vs. Education") 
+
+#For showing them in one figure
+ggarrange(r1,r2,r3,
+          ncol = 2, nrow = 2)
+```
+
+2-Linearity 
+
+If we look at the fitted values and standardized residuals, we can clearly see that there is a linear relationship between x and y. We have almost equal number of dots below and bigger than 0 which supports linearity assumption. So if we look at the graph below we can clearly see that the red line is almost flat in both residual and root residual fitted values plot. This also supports the linearity assumption. 
+
+
+```{r}
+par(mfrow=c(2, 2))
+plot(lm.1, which = 1)
+plot(lm.1, which = 2)
+plot(lm.1, which = 3)
+plot(lm.1, which = 5)
+```
+
+3-Variance of the error term is constant
+
+The variance through line stayed almost the same according to our residual vs fitted plots. Again the fact that the red line in the resiudal plots are almost flat supports the assumption of constant variance along the line. 
+
+4- Errors are normally distributed
+
+The normal quantile plot shows us that points mostly follows the line and there is no significant different path they follow. This means our data is mostly normally distributed and we can accept the normal distribution assumption by looking at the q-q plot.
+
+```{r}
+correlations <- cor(df[,c("income","education","prestige")])
+round(correlations, 2)
+
+usdm::vif(as.data.frame(df[,c("income", "education")]))
+```
+
+5- Collinearity / Multicollinearity
+
+The correlation matrix show that there is a descent correlation which is more than 0.55 between income and education meaning there could be a collinearity. To be sure they are not giving the same information to our model we checked variance inflation factor(vif). The vif is around 1.5 meaning they do not provide the same information to our model so we will accept the assumption that we do not have collinearity in our model and continue to develop with both of the features. 
