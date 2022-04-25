@@ -1,0 +1,293 @@
+---
+title: "HW3-BarisBaturay-545"
+output: html_document
+---
+```{r, include=FALSE}
+#Importing the necessary libraries
+require(tidyverse)
+require(gridExtra)
+require(GGally)
+require(broom)
+require(ggpubr)
+require(scales)
+require(usdm)
+require(pROC)
+
+#Plotting info
+theme.info <- theme(plot.title = element_text(size=16, hjust=0.5),
+                    axis.title = element_text(size=14),
+                    axis.text = element_text(size=14))
+
+#Importing the file
+df <- read_csv('SpeedDating.csv')
+```
+
+```{r}
+head(df)
+```
+
+**Question1**
+```{r}
+#Constructing the table as percantages
+temp.male <- ifelse(df$DecisionM == 0, "MaleNO", "MaleYes") 
+temp.female <- ifelse(df$DecisionF == 0, "FemaleNo", "FemaleYes")
+
+prop.table(table(temp.male, temp.female))*100
+```
+%22.83 percent of the dates ended with both people wanting a second date.
+
+**Question2**
+```{r}
+df <- df %>% mutate(second.date = if_else(DecisionM+DecisionF==2,1,0)) #Constructing a new column
+
+SD <- factor(df$second.date) #Saving the column as a factor
+
+#Saving the scatter plots
+
+scplot.1 <- df %>% ggplot(aes(x=LikeM, y=LikeF, colour=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.2 <- df %>% ggplot(aes(x=PartnerYesM, y=PartnerYesF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.3 <- df %>% ggplot(aes(x=AgeM, y=AgeF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.4 <- df %>% ggplot(aes(x=AttractiveM, y=AttractiveF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.5 <- df %>% ggplot(aes(x=SincereM, y=SincereF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.6 <- df %>% ggplot(aes(x=IntelligentM, y=IntelligentF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.7 <- df %>% ggplot(aes(x=FunM, y=FunF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.8 <- df %>% ggplot(aes(x=AmbitiousM, y=AmbitiousF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+scplot.9 <- df %>% ggplot(aes(x=SharedInterestsM, y=SharedInterestsF, col=SD)) +
+  geom_point(size=2) + geom_jitter()
+
+#Showing all the plots in one plot
+ggarrange(scplot.1, scplot.2, scplot.3,scplot.4,scplot.5,scplot.6,scplot.7,scplot.8,scplot.9, 
+          ncol = 3, nrow = 3, common.legend = TRUE)
+```
+
+The graph shows that age is not a certain predictor for second dates since it is not separated clearly.
+
+However for fun, like, partneryes and shared interests are seems more correlated with the second date. The higher scores given by the both gender the higher the chances of the second date for these features. 
+
+For ambitious, sincere, attractive and intelligence seems doesn't have enough data for scores of 5 or below. The fact that nobody went on a second date which have scores less than 5, it could be a good indicator. However, above 5 the data points are not separated clearly. Because of these factors we can have the idea that most likely these features will not be significant predicting the second date. 
+
+**Question3**
+
+
+```{r}
+#Summary for checking the values 
+summary(subset(df, select = -c(DecisionM,DecisionF,second.date)))
+
+#Change every zero to one
+df[,3:22][df[,3:22] == 0 ] <- 1
+```
+If we look at the min and max values for each of the values we can see that there are 0 voted rows for some of the features. However, there is no more than 10. In this experiment I treated 0's as 1's since it is most likely that people who voted 0 wanted to vote the least number possible. All the votes that is 0 changed into 1's. 
+
+```{r}
+#How many NULL values for each column
+colSums(is.na(df))[colSums(is.na(df)) >0]
+
+sum(apply(df, 1, anyNA))
+```
+
+As we can see from the table there are a lot of null values for many features that our model cannot handle. We have only 276 rows to build our model and there is 76 rows including at least 1 null value. Since, it is too much for our data set it is better to replace these values with means of their column. 
+```{r}
+#Replace NA with means
+df <- df %>% mutate_if(is.numeric, ~replace_na(.,mean(., na.rm = TRUE)))
+```
+
+**Question4**
+```{r}
+#Constructing new data set for mosaic plot
+df_m <- df[,c("RaceM")]
+names(df_m)[1] <- 'Race'
+df_m$Gender <- rep(1, nrow(df_m))
+df_f <- df[,c("RaceF")]
+names(df_f)[1] <- 'Race'
+df_f$Gender <- rep(0, nrow(df_f))
+mos <- rbind(df_f,df_m)
+
+#Counting total races
+mos %>% count(Race)
+```
+There are 6 total null values in our data set for both males and females. Since, it is less than %3 of our data we can easily eliminate them or we can include them in our model by classifying them as 'other'. In this experiment I choose to include them into 'other' to build my model.
+```{r}
+#Replace NA of the races with 'other' 
+df$RaceF[is.na(df$RaceF)] <- "Other"
+df$RaceM[is.na(df$RaceM)] <- "Other"
+```
+
+
+```{r}
+#Plotting the mosaic
+temp.1 <- factor(ifelse(mos$Gender == 0, "Female", "Male"), 
+                 levels=c("Female", "Male"))
+
+mosaicplot(table(mos$Race, temp.1), las=TRUE, 
+           xlab="RACE", ylab="GENDER",
+           main="RACE vs. MAJOR",cex.axis=1.4,
+           col=c("cadetblue", "firebrick"))
+```
+
+In our data set we have almost the same amount of male and female genders in both Asian and Caucasian races. However, we have more females in Black and Latin races. Also, if we look at the other races combined we have more males then females.
+
+In general, there is no significant imbalances or large amount of differences in each race that we should be careful about. So, we can continue to build our model.
+
+**Question5**
+
+FINDING THE BEST MODEL
+```{r}
+model_df <- subset(df, select = -c(DecisionM,DecisionF))
+glm.1 <- glm(second.date ~ . ,data=model_df, family=binomial(link="logit"))
+#summary(glm.1)
+```
+
+```{r}
+glm.2 <- glm(second.date ~ FunF + AttractiveF + RaceM + RaceF + PartnerYesM + PartnerYesF + AmbitiousF ,data=model_df, family=binomial(link="logit"))
+#summary(glm.2)
+```
+
+```{r}
+glm.3 <- glm(second.date ~  FunF + AttractiveF + AmbitiousF + PartnerYesM + PartnerYesF ,data=model_df, family=binomial(link="logit"))
+summary(glm.3)
+```
+```{r}
+anova(glm.3,glm.1, test="LRT")
+```
+
+To decide our best model I have decided to take my confidence level %95 percent meaning our p values should be lower than 0.05 for futures I am going to include my model. I eliminated the features having a p value higher than 0.05 by doing z-tests for each feature like below;
+
+H0:Beta(FeatureName) = 0
+Ha:Beta(FeatureName) != 0
+
+So we rejected null hypthesis for the features FunF, AttractiveF, AmbitiousF, PartnerYesF, PartnerYesM
+
+Then to be certain we did Log-Likelihood Test for to compare our first model and last model like below;
+
+Complete model: Beta0 + Beta1 x1 ... Betak  xk
+Reduced model : Beta0 + Beta1 x1 ... Betag xg
+
+Ho: Betag+1 = Betag+2 = ..... = Betak = 0
+Ha: At least one the slopes is not zero
+
+Since our anova test value is 0.04 which is lower than 0.05 we can say that it is significant and we can reject the null hypothesis and continue with our final model. 
+
+HYPOTHESIS TESTING
+```{r}
+# 5A. log-likelihood for overall model ####
+
+# test statistic:
+summary(glm.3)$null.deviance - summary(glm.3)$deviance
+
+# degrees of freedom for test statistic
+summary(glm.3)$df.null - summary(glm.3)$df.residual
+
+# p-value calculation
+pchisq(summary(glm.3)$null.deviance - summary(glm.3)$deviance, 
+       df=summary(glm.3)$df.null - summary(glm.3)$df.residual,
+       lower.tail=FALSE)
+```
+For our final model we want our p-value to be lower than 0.05 according to the confidence interval we choose which is %95;
+
+H0: beta1 = 0
+Ha: beta1 != 0
+
+Since our slope is smaller than 0.05 we can reject the null hypothesis and can say it is significant. It is okay to pursue with our final model. 
+
+
+ASSUMPTIONS
+1-Explanatory variables measured without error:
+We can assume that people are honest with their answers and data is collected from trustworthy people. Surveys are most likely to have small errors but for this experiment we can assume that all the variables measured without an error. 
+
+2-Model correctly specified:
+This is a strong assumption and it is nearly impossible to know if we have all the data we need. For this subject, they gathered all the data which they thought it will effect the second dates results. So, the assumption is probably satisfied. 
+
+3- Outcomes not completely separable: 
+R logistic regression (glm) function won't work if this assumption is not satisfied. Since it worked without an error it is already satisfied. 
+
+4- No outliers:
+If we check the cooks distance of the fitted model, we can clearly see that there is not a major outlier that effects our model so the assumption is satisfied. 
+```{r}
+#Checking the outliers with cooks distance
+plot(glm.3, which=4, las=TRUE)
+```
+
+5- Observations are independent:
+There is no region, nation or race limitations we can see. The experiment only conducted for professional and graduate students so, it can be only valid for these people. Since, the aim is that too see these people's second date chances assumption is satisfied. 
+
+6- Checking for Collinearity/Multicollinearity:
+If we look at the Variance Inflation Factor(VIF) of the features that we included in our model we can clearly see that there is not Collinearity between the features so it is okay to include all of them into our model. Multicollinearity assumption is also satisfied.
+```{r}
+#Checking the collinearity with VIF function
+usdm::vif(as.data.frame(subset(df, select = -c(DecisionM,DecisionF,second.date,RaceM,RaceF,FunM,LikeM,LikeF,
+                                               AmbitiousM,AmbitiousF,SharedInterestsM,SharedInterestsF,AgeM,AgeF,
+                                               IntelligentM,IntelligentF,AttractiveM,SincereM,SincereF))))
+```
+**Question6**
+
+Checking for sample size;
+
+At least 50 observations for both second.date = 0 and second.date = 1 is needed because we have 5 exploratory features and we need 10 for each of them for each second date result. 
+```{r}
+#Checking the sample size
+df.fin <- df[,c("second.date","FunF","AttractiveF","AmbitiousF","PartnerYesM","PartnerYesF")] 
+table(ifelse(df.fin$second.date == 1, "Yes", "No"))
+
+```
+Sample Size assumption is satisfied and the model follow the rule of thumb since, both 'no' and 'yes' values have more than 50 observations in the data set. 
+
+**Question7**
+
+When the female thinks their partner is fun and attractive it increases the chances of having the second date. However, when female thinks that their partners are ambitious it reduces the chances of the second date. Also, both males and females are good at predicting their partners willingness to go on a second date.
+
+I was expecting that shared interests and intelligence to be more significant however, it is not significant at all. In conclusion we can say that people do not look other persons intelligence or interests to go on a second date. 
+
+Also, I have noticed that there is not any significant factor for males except than guessing partners willingness to go on a second date. If a female didn't think their partner is fun and attractive they are more likely to not going second date. Males opinions about their partners is not a significant factor for going into a second date. I was expecting that males opinions to be more effective going second date.  
+
+**Question8**
+
+```{r}
+#Plotting the ROC curve and calculating AOC 
+roc(response=df.fin$second.date[complete.cases(df.fin)], 
+    predictor=glm.3$fitted.values,
+    plot=TRUE, las=TRUE, 	legacy.axes=TRUE, lwd=5,
+    main="ROC for Second Date Analysis", 
+    cex.main=1.6, cex.axis=1.3, cex.lab=1.3)
+legend("bottomright",legend=paste("AUC=", 
+            round(auc(response=df.fin$second.date[complete.cases(df.fin)], 
+            predictor=glm.3$fitted.values), digits=3), sep=" "),
+       bty="n", cex=1.4)
+```
+
+```{r}
+#Plotting the Threshold vs Sensitivity + Specifity Graph to decide the threshold
+roc.info <- roc(response=df.fin$second.date[complete.cases(df.fin)], 
+                predictor=glm.3$fitted.values)
+pi.range <- coords(roc.info, x="all", 
+        ret=c("threshold", "specificity", "sensitivity"), 
+        transpose=FALSE)
+plot(pi.range[2:263, "threshold"], 
+     pi.range[2:263, "sensitivity"] + 
+          pi.range[2:263, "specificity"], type="l",
+     las=TRUE, xlab=expression(paste("Threshold, ", pi^"*", sep="")), 
+     ylab="Sensitivity + Specificity", 
+     main="Sensitivity + Specificity Against Threshold", 
+     cex.axis=1.3, cex.lab=1.3, 
+     cex.main=1.3, lwd=2, xlim=c(0, 1))
+```
+```{r}
+pi.range[128:133,]
+```
+
+
+```{r}
+#Summary table for the best threshold 
+coords(roc.info, x="best", 
+       ret=c("threshold", "accuracy","specificity", "sensitivity"), 
+       transpose=FALSE)
+```
+
+I would choose a threshold value with high sensitivity because we don't want to miss label a possible second date. So our goal is to make false negatives small as possible meaning we need to increase sensitivity with the lowest cost of specificity. I would chose my threshold between 13-14 which is not far from the optimized threshold to make the models sensitivity 0.89. Even though there will be more miss labeled positive values the important thing is that we do not want to miss a possible second date. 
